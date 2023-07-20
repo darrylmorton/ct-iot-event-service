@@ -18,10 +18,15 @@ build: vet
 	go build -v -o ${BINARY_NAME} ./cmd/api
 .PHONY:build
 
-run:
+run-dev:
 	go build -v -o ${BINARY_NAME} ./cmd/api
 	EVENTS_DB_DSN=${EVENTS_DB_DSN_VALUE} ./${BINARY_NAME}
-.PHONY:run
+.PHONY:run-dev
+
+run-prod:
+	go build -v -o ${BINARY_NAME} ./cmd/api
+	./${BINARY_NAME}
+.PHONY:run-prod
 
 clean:
 	go clean
