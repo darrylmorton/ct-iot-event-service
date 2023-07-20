@@ -1,0 +1,34 @@
+name: Build and Test
+
+on:
+  push:
+    branches-ignore: ["main"]
+
+jobs:
+  tests:
+    name: Run tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v3
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.20'
+
+      - name: Build
+        run: make build
+        env:
+          GOPATH: ${{ runner.workspace }}
+
+      - name: Setup dependencies
+        run: docker-compose up -d
+
+      - name: Sleep
+        uses: kibertoad/wait-action@1.0.1
+        with:
+          time: '30s'
+
+      - name: Test
+        run: make test
