@@ -15,30 +15,30 @@ func (app *Application) GetHealthCheck(req *http.Request) *http.Response {
 	return response
 }
 
-func (app *Application) Put(req *http.Request) *http.Response {
+func (app *Application) PutEvent(req *http.Request) *http.Response {
 	response, responseErr := app.Client.Do(req)
 	if responseErr != nil {
-		err := fmt.Errorf("put - responseErr %+v", responseErr)
+		err := fmt.Errorf("putEvent - responseErr %+v", responseErr)
 		fmt.Println(err.Error())
 	}
 
 	return response
 }
 
-func (app *Application) GetAll(req *http.Request) *http.Response {
+func (app *Application) GetEvents(req *http.Request) *http.Response {
 	response, responseErr := app.Client.Do(req)
 	if responseErr != nil {
-		err := fmt.Errorf("getAll - responseErr %v", responseErr)
+		err := fmt.Errorf("getEvents - responseErr %v", responseErr)
 		fmt.Println(err.Error())
 	}
 
 	return response
 }
 
-func (app *Application) Get(req *http.Request) *http.Response {
+func (app *Application) GetEvent(req *http.Request) *http.Response {
 	response, responseErr := app.Client.Do(req)
 	if responseErr != nil {
-		err := fmt.Errorf("get - responseErr %v", responseErr)
+		err := fmt.Errorf("getEvent - responseErr %v", responseErr)
 		fmt.Println(err.Error())
 	}
 

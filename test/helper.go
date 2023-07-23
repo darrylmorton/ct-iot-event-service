@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var envs = client.CreateEnvs("", "", "", "v1/events")
+var envs = client.CreateEnvs("", "", "", "v1")
 
 func createHeaders() map[string]string {
 	headers := make(map[string]string)
@@ -150,7 +150,7 @@ func CreateEventPayload() Event {
 }
 
 func GetHealthCheck() (int, HealthCheck) {
-	url := fmt.Sprintf("%s/%s", envs.ClientUrl, "health")
+	url := fmt.Sprintf("%s/health", envs.ClientUrl)
 
 	requestOptions := client.RequestOptions{
 		Headers: createHeaders(),
@@ -165,7 +165,7 @@ func GetHealthCheck() (int, HealthCheck) {
 }
 
 func PutEvent(id string, payload Event) (int, Event) {
-	url := fmt.Sprintf("%s/%s", envs.ClientUrl, id)
+	url := fmt.Sprintf("%s/events/%s", envs.ClientUrl, id)
 
 	payloadMarshalled, _ := json.Marshal(payload)
 
@@ -182,20 +182,7 @@ func PutEvent(id string, payload Event) (int, Event) {
 }
 
 func GetEvents() (int, []Event) {
-	requestOptions := client.RequestOptions{
-		Headers: createHeaders(),
-		Method:  "GET",
-		Url:     envs.ClientUrl,
-		Payload: nil,
-	}
-
-	res := client.GetAllRequest(requestOptions)
-
-	return GetEventsResponse(res)
-}
-
-func GetEvent(id string) (int, Event) {
-	url := fmt.Sprintf("%s/%s", envs.ClientUrl, id)
+	url := fmt.Sprintf("%s/events", envs.ClientUrl)
 
 	requestOptions := client.RequestOptions{
 		Headers: createHeaders(),
@@ -204,7 +191,22 @@ func GetEvent(id string) (int, Event) {
 		Payload: nil,
 	}
 
-	res := client.GetRequest(requestOptions)
+	res := client.GetEventsRequest(requestOptions)
+
+	return GetEventsResponse(res)
+}
+
+func GetEvent(id string) (int, Event) {
+	url := fmt.Sprintf("%s/events/%s", envs.ClientUrl, id)
+
+	requestOptions := client.RequestOptions{
+		Headers: createHeaders(),
+		Method:  "GET",
+		Url:     url,
+		Payload: nil,
+	}
+
+	res := client.GetEventRequest(requestOptions)
 
 	return GetEventResponse(res)
 }

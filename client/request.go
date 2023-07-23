@@ -32,27 +32,27 @@ func PutRequest(requestOptions RequestOptions) *http.Response {
 		fmt.Println(err.Error())
 	}
 
-	return App.Put(request)
+	return App.PutEvent(request)
 }
 
-func GetAllRequest(requestOptions RequestOptions) *http.Response {
+func GetEventsRequest(requestOptions RequestOptions) *http.Response {
 	request, newRequestErr := http.NewRequest(requestOptions.Method, requestOptions.Url, bytes.NewReader(requestOptions.Payload))
 
 	if newRequestErr != nil {
-		err := fmt.Errorf("GetAllRequest - newRequestErr %v", newRequestErr)
+		err := fmt.Errorf("GetEventsRequest - newRequestErr %v", newRequestErr)
 		fmt.Println(err.Error())
 	}
 
-	return App.GetAll(request)
+	return App.GetEvents(request)
 }
 
-func GetRequest(requestOptions RequestOptions) *http.Response {
+func GetEventRequest(requestOptions RequestOptions) *http.Response {
 	request, newRequestErr := http.NewRequest(requestOptions.Method, requestOptions.Url, bytes.NewReader(requestOptions.Payload))
 
 	if newRequestErr != nil {
-		err := fmt.Errorf("GetRequest - newRequestErr %v", newRequestErr)
+		err := fmt.Errorf("GetEventRequest - newRequestErr %v", newRequestErr)
 		fmt.Println(err.Error())
 	}
 
-	return App.Get(request)
+	return App.GetEvent(request)
 }
