@@ -13,11 +13,22 @@ type RequestOptions struct {
 	Payload []byte
 }
 
+func GetHealthCheckRequest(requestOptions RequestOptions) *http.Response {
+	request, newRequestErr := http.NewRequest(requestOptions.Method, requestOptions.Url, bytes.NewReader(requestOptions.Payload))
+
+	if newRequestErr != nil {
+		err := fmt.Errorf("GetHealthCheckRequest - newRequestErr %v", newRequestErr)
+		fmt.Println(err.Error())
+	}
+
+	return App.GetHealthCheck(request)
+}
+
 func PutRequest(requestOptions RequestOptions) *http.Response {
 	request, newRequestErr := http.NewRequest(requestOptions.Method, requestOptions.Url, bytes.NewReader(requestOptions.Payload))
 
 	if newRequestErr != nil {
-		err := fmt.Errorf("createRequest - newRequestErr %v", newRequestErr)
+		err := fmt.Errorf("PutRequest - newRequestErr %v", newRequestErr)
 		fmt.Println(err.Error())
 	}
 

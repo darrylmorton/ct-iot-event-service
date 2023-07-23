@@ -122,6 +122,12 @@ func CreateEvent(db *sql.DB, data Event) (Event, error) {
 	return event, err
 }
 
+type HealthCheck struct {
+	Version     string `json:"version,omitempty"`
+	Status      string `json:"status,omitempty"`
+	Environment string `json:"environment,omitempty"`
+}
+
 type Event struct {
 	Id          string    `json:"id,omitempty"`
 	DeviceName  string    `json:"deviceName,omitempty"`
@@ -143,14 +149,25 @@ func CreateEventPayload() Event {
 	}
 }
 
+func GetHealthCheck() (int, HealthCheck) {
+	url := fmt.Sprintf("%s/%s", envs.ClientUrl, "health")
+
+	requestOptions := client.RequestOptions{
+		Headers: createHeaders(),
+		Method:  "GET",
+		Url:     url,
+		Payload: nil,
+	}
+
+	res := client.GetHealthCheckRequest(requestOptions)
+
+	return GetHealthCheckResponse(res)
+}
+
 func PutEvent(id string, payload Event) (int, Event) {
 	url := fmt.Sprintf("%s/%s", envs.ClientUrl, id)
 
 	payloadMarshalled, _ := json.Marshal(payload)
-	//if payloadMarshalledErr != nil {
-	//	err := fmt.Errorf("PutEvent - payloadMarshalledErr %v", payloadMarshalledErr)
-	//	fmt.Errorf(err.Error())
-	//}
 
 	requestOptions := client.RequestOptions{
 		Headers: createHeaders(),

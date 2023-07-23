@@ -7,6 +7,29 @@ import (
 	"net/http"
 )
 
+func GetHealthCheckResponse(res *http.Response) (int, HealthCheck) {
+	defer func(Body io.ReadCloser) {
+		err := Body.Close()
+		if err != nil {
+			err := fmt.Errorf("GetHealthCheckResponse - bodyCloseErr %v", err)
+			fmt.Println(err.Error())
+		}
+	}(res.Body)
+
+	statusCode := res.StatusCode
+
+	body, responseBodyErr := io.ReadAll(res.Body)
+	if responseBodyErr != nil {
+		err := fmt.Errorf("GetHealthCheckResponse - responseBodyErr %v", responseBodyErr)
+		fmt.Println(err.Error())
+	}
+
+	var responseObj HealthCheck
+	json.Unmarshal(body, &responseObj)
+
+	return statusCode, responseObj
+}
+
 func PutEventResponse(res *http.Response) (int, Event) {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
