@@ -12,7 +12,7 @@ func (app *application) router() *gin.Engine {
 	v1.GET("/health", app.healthCheck)
 	v1.GET("/events", app.getEvents)
 	v1.GET("/events/:id", app.getEvent)
-	v1.POST("/events", app.postEvent)
+	v1.PUT("/events/:id", app.putEvent)
 
 	return r
 }

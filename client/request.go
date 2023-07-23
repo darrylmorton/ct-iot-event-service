@@ -13,7 +13,7 @@ type RequestOptions struct {
 	Payload []byte
 }
 
-func CreateRequest(requestOptions RequestOptions) *http.Response {
+func PutRequest(requestOptions RequestOptions) *http.Response {
 	request, newRequestErr := http.NewRequest(requestOptions.Method, requestOptions.Url, bytes.NewReader(requestOptions.Payload))
 
 	if newRequestErr != nil {
@@ -21,7 +21,7 @@ func CreateRequest(requestOptions RequestOptions) *http.Response {
 		fmt.Println(err.Error())
 	}
 
-	return App.Create(request)
+	return App.Put(request)
 }
 
 func GetAllRequest(requestOptions RequestOptions) *http.Response {

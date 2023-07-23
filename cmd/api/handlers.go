@@ -58,18 +58,33 @@ func (app *application) getEvent(c *gin.Context) {
 	c.IndentedJSON(200, results)
 }
 
-func (app *application) postEvent(c *gin.Context) {
+func (app *application) putEvent(c *gin.Context) {
+	id := c.Param("id")
+
+	_, err := uuid.Parse(id)
+	if err != nil {
+		app.logger.Printf("invalid uuid: %s", id)
+		http.Error(c.Writer, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
+		return
+	}
+
+	_, getEventErr, getEventStatusCode := app.models.Events.GetEvent(id)
+	if getEventErr != nil {
+		http.Error(c.Writer, http.StatusText(getEventStatusCode), getEventStatusCode)
+		return
+	}
+
 	c.Header("Content-Type", "application/json")
 
 	var input = data.Event{}
 
-	err := app.readJSON(c.Writer, c.Request, &input)
+	err = app.readJSON(c.Writer, c.Request, &input)
 	if err != nil {
 		http.Error(c.Writer, http.StatusText(http.StatusBadRequest), http.StatusBadRequest)
 		return
 	}
 
-	results, err, statusCode := app.models.Events.PostEvent(input)
+	results, err, statusCode := app.models.Events.PutEvent(id, input)
 	if err != nil {
 		switch {
 		case statusCode == 400:
@@ -84,5 +99,5 @@ func (app *application) postEvent(c *gin.Context) {
 		}
 	}
 
-	c.IndentedJSON(201, results)
+	c.IndentedJSON(200, results)
 }

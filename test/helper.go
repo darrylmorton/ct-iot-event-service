@@ -52,9 +52,35 @@ func DeleteEvents(db *sql.DB) error {
 		return err
 	}
 
-	defer db.Close()
-
 	return nil
+}
+
+func CreateEvent(db *sql.DB, data Event) (Event, error) {
+	query := `
+		INSERT INTO events (device_name, description, type, event, read)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, device_name AS deviceName, description, type, event, read
+	`
+
+	var event Event
+
+	args := []interface{}{data.DeviceName, data.Description, data.Type, data.Event, data.Read}
+	row := db.QueryRow(query, args...)
+
+	err := row.Scan(
+		&event.Id,
+		&event.DeviceName,
+		&event.Description,
+		&event.Type,
+		&event.Event,
+		&event.Read,
+	)
+
+	if err != nil {
+		return Event{}, err
+	}
+
+	return event, err
 }
 
 type Event struct {
@@ -78,24 +104,25 @@ func CreateEventPayload() Event {
 	}
 }
 
-func PostEvent() (int, Event) {
-	payload := CreateEventPayload()
-	payloadMarshalled, payloadMarshalledErr := json.Marshal(payload)
-	if payloadMarshalledErr != nil {
-		err := fmt.Errorf("PostEvent - payloadMarshalledErr %v", payloadMarshalledErr)
-		fmt.Errorf(err.Error())
-	}
+func PutEvent(id string, payload Event) (int, Event) {
+	url := fmt.Sprintf("%s/%s", envs.ClientUrl, id)
+
+	payloadMarshalled, _ := json.Marshal(payload)
+	//if payloadMarshalledErr != nil {
+	//	err := fmt.Errorf("PutEvent - payloadMarshalledErr %v", payloadMarshalledErr)
+	//	fmt.Errorf(err.Error())
+	//}
 
 	requestOptions := client.RequestOptions{
 		Headers: createHeaders(),
-		Method:  "POST",
-		Url:     envs.ClientUrl,
+		Method:  "PUT",
+		Url:     url,
 		Payload: payloadMarshalled,
 	}
 
-	res := client.CreateRequest(requestOptions)
+	res := client.PutRequest(requestOptions)
 
-	return PostEventResponse(res)
+	return PutEventResponse(res)
 }
 
 func GetEvents() (int, []Event) {

@@ -92,17 +92,16 @@ func (e EventModel) GetEvent(id string) (*Event, error, int) {
 	return &event, err, http.StatusOK
 }
 
-func (e EventModel) PostEvent(data Event) (*Event, error, int) {
+func (e EventModel) PutEvent(id string, data Event) (Event, error, int) {
 	query := `
-		INSERT INTO events (device_name, description, type, event, read)
-		VALUES ($1, $2, $3, $4, $5)
+		UPDATE events SET read = $1
+		WHERE id = $2
 		RETURNING id, device_name AS deviceName, description, type, event, read
 	`
 
 	var event Event
 
-	args := []interface{}{data.DeviceName, data.Description, data.Type, data.Event, data.Read}
-	// return the auto generated system values to Go object
+	args := []interface{}{data.Read, id}
 	row := e.DB.QueryRow(query, args...)
 	err := row.Scan(
 		&event.Id,
@@ -114,8 +113,8 @@ func (e EventModel) PostEvent(data Event) (*Event, error, int) {
 	)
 
 	if err != nil {
-		return nil, err, http.StatusInternalServerError
+		return Event{}, err, http.StatusInternalServerError
 	}
 
-	return &event, err, http.StatusCreated
+	return event, err, http.StatusOK
 }

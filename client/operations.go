@@ -5,10 +5,10 @@ import (
 	"net/http"
 )
 
-func (app *Application) Create(req *http.Request) *http.Response {
+func (app *Application) Put(req *http.Request) *http.Response {
 	response, responseErr := app.Client.Do(req)
 	if responseErr != nil {
-		err := fmt.Errorf("create - responseErr %+v", responseErr)
+		err := fmt.Errorf("put - responseErr %+v", responseErr)
 		fmt.Println(err.Error())
 	}
 
@@ -18,7 +18,7 @@ func (app *Application) Create(req *http.Request) *http.Response {
 func (app *Application) GetAll(req *http.Request) *http.Response {
 	response, responseErr := app.Client.Do(req)
 	if responseErr != nil {
-		err := fmt.Errorf("GetAll - responseErr %v", responseErr)
+		err := fmt.Errorf("getAll - responseErr %v", responseErr)
 		fmt.Println(err.Error())
 	}
 
@@ -28,7 +28,7 @@ func (app *Application) GetAll(req *http.Request) *http.Response {
 func (app *Application) Get(req *http.Request) *http.Response {
 	response, responseErr := app.Client.Do(req)
 	if responseErr != nil {
-		err := fmt.Errorf("Get - responseErr %v", responseErr)
+		err := fmt.Errorf("get - responseErr %v", responseErr)
 		fmt.Println(err.Error())
 	}
 

@@ -4,11 +4,18 @@ import (
 	"testing"
 )
 
-func postEventSuccess(t *testing.T) {
-	expectedStatusCode := 201
-	expectedResult := CreateEventPayload()
+var db = DbConnection()
+var eventNotFoundId = "00000000-0000-0000-0000-000000000000"
 
-	actualStatusCode, actualResult := PostEvent()
+func putEventSuccess(t *testing.T) {
+	expectedStatusCode := 200
+
+	_, results := GetEvents()
+
+	expectedResult := results[0]
+	expectedResult.Read = true
+
+	actualStatusCode, actualResult := PutEvent(expectedResult.Id, expectedResult)
 
 	if expectedStatusCode != actualStatusCode {
 		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
@@ -17,9 +24,31 @@ func postEventSuccess(t *testing.T) {
 	AssertEvent(expectedResult, actualResult, t)
 }
 
+func putEventInvalidUuid(t *testing.T) {
+	expectedStatusCode := 400
+
+	actualStatusCode, _ := PutEvent("1", Event{})
+
+	if expectedStatusCode != actualStatusCode {
+		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
+	}
+}
+
+func putEventNotFound(t *testing.T) {
+	expectedStatusCode := 404
+
+	actualStatusCode, _ := PutEvent(eventNotFoundId, Event{})
+
+	if expectedStatusCode != actualStatusCode {
+		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
+	}
+}
+
 func getEventsSuccess(t *testing.T) {
 	expectedStatusCode := 200
-	expectedResult := []Event{CreateEventPayload()}
+
+	payload := CreateEventPayload()
+	expectedResult, _ := CreateEvent(db, payload)
 
 	actualStatusCode, actualResult := GetEvents()
 
@@ -27,27 +56,27 @@ func getEventsSuccess(t *testing.T) {
 		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
 	}
 
-	AssertEvents(expectedResult, actualResult, t)
+	AssertEvents([]Event{expectedResult}, actualResult, t)
 }
 
 func getEventSuccess(t *testing.T) {
 	expectedStatusCode := 200
 
-	_, expectedResult := PostEvent()
+	_, expectedResult := GetEvents()
 
-	actualStatusCode, actualResult := GetEvent(expectedResult.Id)
+	actualStatusCode, actualResult := GetEvent(expectedResult[0].Id)
 
 	if expectedStatusCode != actualStatusCode {
 		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
 	}
 
-	AssertEvent(expectedResult, actualResult, t)
+	AssertEvent(expectedResult[0], actualResult, t)
 }
 
 func getEventNotFound(t *testing.T) {
 	expectedStatusCode := 404
 
-	actualStatusCode, _ := GetEvent("00000000-0000-0000-0000-000000000000")
+	actualStatusCode, _ := GetEvent(eventNotFoundId)
 
 	if expectedStatusCode != actualStatusCode {
 		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
@@ -65,20 +94,27 @@ func getEventInvalidUuid(t *testing.T) {
 }
 
 func TestGroups(t *testing.T) {
-	db := DbConnection()
-	DeleteEvents(db)
-
-	t.Run("Create Event", func(t *testing.T) {
-		t.Run("Success", postEventSuccess)
+	t.Run("Before", func(t *testing.T) {
+		DeleteEvents(db)
 	})
 
 	t.Run("Get Events", func(t *testing.T) {
 		t.Run("Success", getEventsSuccess)
 	})
 
+	t.Run("Put Event", func(t *testing.T) {
+		t.Run("Success", putEventSuccess)
+		t.Run("Invalid UUID", putEventInvalidUuid)
+		t.Run("Not Found", putEventNotFound)
+	})
+
 	t.Run("Get Event", func(t *testing.T) {
 		t.Run("Success", getEventSuccess)
 		t.Run("Invalid uuid", getEventInvalidUuid)
 		t.Run("Not found", getEventNotFound)
+	})
+
+	t.Run("After", func(t *testing.T) {
+		db.Close()
 	})
 }

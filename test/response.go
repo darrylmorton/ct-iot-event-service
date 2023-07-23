@@ -7,11 +7,11 @@ import (
 	"net/http"
 )
 
-func PostEventResponse(res *http.Response) (int, Event) {
+func PutEventResponse(res *http.Response) (int, Event) {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
-			err := fmt.Errorf("PostEventResponse - bodyCloseErr %v", err)
+			err := fmt.Errorf("PutEventResponse - bodyCloseErr %v", err)
 			fmt.Println(err.Error())
 		}
 	}(res.Body)
@@ -20,16 +20,12 @@ func PostEventResponse(res *http.Response) (int, Event) {
 
 	body, responseBodyErr := io.ReadAll(res.Body)
 	if responseBodyErr != nil {
-		err := fmt.Errorf("PostEventResponse - responseBodyErr %v", responseBodyErr)
+		err := fmt.Errorf("PutEventResponse - responseBodyErr %v", responseBodyErr)
 		fmt.Println(err.Error())
 	}
 
 	var responseObj Event
-	responseObjUnmarshallErr := json.Unmarshal(body, &responseObj)
-	if responseObjUnmarshallErr != nil {
-		err := fmt.Errorf("PostEventResponse - responseObjUnmarshallErr %v", responseObjUnmarshallErr)
-		fmt.Println(err.Error())
-	}
+	json.Unmarshal(body, &responseObj)
 
 	return statusCode, responseObj
 }
@@ -52,11 +48,7 @@ func GetEventsResponse(res *http.Response) (int, []Event) {
 	}
 
 	var responseObj []Event
-	responseObjUnmarshallErr := json.Unmarshal(body, &responseObj)
-	if responseObjUnmarshallErr != nil {
-		err := fmt.Errorf("GetEventsResponse - responseObjUnmarshallErr %v", responseObjUnmarshallErr)
-		fmt.Println(err.Error())
-	}
+	json.Unmarshal(body, &responseObj)
 
 	return statusCode, responseObj
 }
@@ -79,11 +71,7 @@ func GetEventResponse(res *http.Response) (int, Event) {
 	}
 
 	var responseObj Event
-	responseObjUnmarshallErr := json.Unmarshal(body, &responseObj)
-	if responseObjUnmarshallErr != nil {
-		err := fmt.Errorf("GetEventResponse - responseObjUnmarshallErr %v", responseObjUnmarshallErr)
-		fmt.Println(err.Error())
-	}
+	json.Unmarshal(body, &responseObj)
 
 	return statusCode, responseObj
 }
