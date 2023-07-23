@@ -11,7 +11,7 @@ import (
 	"time"
 )
 
-var envs = client.CreateEnvs("http", "localhost", "4000", "v1")
+var envs = client.CreateEnvs("", "", "", "v1")
 
 func createHeaders() map[string]string {
 	headers := make(map[string]string)
