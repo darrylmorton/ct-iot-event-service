@@ -30,8 +30,8 @@ jobs:
         with:
           time: '30s'
 
-      - name: Run Development Service
-        run: make run-dev
+      - name: Run development server
+        run: make run-dev &
 
       - name: Test
         run: make test
