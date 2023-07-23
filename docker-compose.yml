@@ -1,0 +1,12 @@
+version: "3"
+
+services:
+  event-service-postgres-testing:
+    container_name: event-service-postgres-testing
+    image: postgres:13.8-alpine
+    ports:
+      - "5432:5432"
+    environment:
+      - POSTGRES_USER=postgres
+      - POSTGRES_PASSWORD=postgres
+      - POSTGRES_DB=events
