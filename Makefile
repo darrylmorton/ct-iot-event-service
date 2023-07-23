@@ -34,5 +34,5 @@ clean:
 .PHONY:clean
 
 test:
-	go test -v ./...
+	go clean -testcache && EVENTS_DB_DSN=${EVENTS_DB_DSN_VALUE} go test -v ./...
 .PHONY:test

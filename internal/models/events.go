@@ -16,6 +16,10 @@ type Event struct {
 	Read        bool   `json:"read"`
 }
 
+type EventData struct {
+	Data Event `json:"data"`
+}
+
 type EventsModel struct {
 	Endpoint string
 }
@@ -45,7 +49,7 @@ func (m *EventsModel) GetEvents() ([]Event, error) {
 	return response, nil
 }
 
-func (m *EventsModel) GetEvent(id string) (*Event, error) {
+func (m *EventsModel) GetEvent(id string) (*EventData, error) {
 	url := fmt.Sprintf("%s/%s", m.Endpoint, id)
 	resp, err := http.Get(url)
 	if err != nil {
@@ -62,7 +66,7 @@ func (m *EventsModel) GetEvent(id string) (*Event, error) {
 		return nil, err
 	}
 
-	var response *Event
+	var response *EventData
 	err = json.Unmarshal(data, &response)
 	if err != nil {
 		return nil, err

@@ -3,14 +3,13 @@ package data
 import (
 	"database/sql"
 	"errors"
-	"fmt"
 	"net/http"
 	"time"
 )
 
 type Event struct {
 	Id          string    `json:"id"`
-	Name        string    `json:"name"`
+	DeviceName  string    `json:"deviceName"`
 	Description string    `json:"description"`
 	Type        string    `json:"type"`
 	Event       string    `json:"event"`
@@ -25,8 +24,9 @@ type EventModel struct {
 
 func (e EventModel) GetEvents() ([]*Event, error) {
 	query := `
-	  SELECT * FROM events
-	  ORDER BY updated_at`
+	  SELECT id, device_name, description, type, event, read FROM events
+	  ORDER BY updated_at
+  	`
 
 	rows, err := e.DB.Query(query)
 	if err != nil {
@@ -35,20 +35,18 @@ func (e EventModel) GetEvents() ([]*Event, error) {
 
 	defer rows.Close()
 
-	events := []*Event{}
+	var events []*Event
 
 	for rows.Next() {
 		var event Event
 
 		err := rows.Scan(
 			&event.Id,
-			&event.Name,
+			&event.DeviceName,
 			&event.Description,
 			&event.Type,
 			&event.Event,
 			&event.Read,
-			&event.CreatedAt,
-			&event.UpdatedAt,
 		)
 		if err != nil {
 			return nil, err
@@ -66,28 +64,24 @@ func (e EventModel) GetEvents() ([]*Event, error) {
 
 func (e EventModel) GetEvent(id string) (*Event, error, int) {
 	query := `
-		SELECT * FROM events
-		WHERE id = $1`
+		SELECT id, device_name, description, type, event, read FROM events
+		WHERE id = $1
+	`
 
 	var event Event
 
-	err := e.DB.QueryRow(query, id).Scan(
+	row := e.DB.QueryRow(query, id)
+	err := row.Scan(
 		&event.Id,
-		&event.Name,
+		&event.DeviceName,
 		&event.Description,
 		&event.Type,
 		&event.Event,
 		&event.Read,
-		&event.CreatedAt,
-		&event.UpdatedAt,
 	)
-
-	invalidUuidErrorMessage := fmt.Sprintf(`pq: invalid input syntax for type uuid: "%s"`, id)
 
 	if err != nil {
 		switch {
-		case err.Error() == invalidUuidErrorMessage:
-			return nil, err, http.StatusBadRequest
 		case errors.Is(err, sql.ErrNoRows):
 			return nil, err, http.StatusNotFound
 		default:
@@ -96,4 +90,32 @@ func (e EventModel) GetEvent(id string) (*Event, error, int) {
 	}
 
 	return &event, err, http.StatusOK
+}
+
+func (e EventModel) PostEvent(data Event) (*Event, error, int) {
+	query := `
+		INSERT INTO events (device_name, description, type, event, read)
+		VALUES ($1, $2, $3, $4, $5)
+		RETURNING id, device_name AS deviceName, description, type, event, read
+	`
+
+	var event Event
+
+	args := []interface{}{data.DeviceName, data.Description, data.Type, data.Event, data.Read}
+	// return the auto generated system values to Go object
+	row := e.DB.QueryRow(query, args...)
+	err := row.Scan(
+		&event.Id,
+		&event.DeviceName,
+		&event.Description,
+		&event.Type,
+		&event.Event,
+		&event.Read,
+	)
+
+	if err != nil {
+		return nil, err, http.StatusInternalServerError
+	}
+
+	return &event, err, http.StatusCreated
 }
