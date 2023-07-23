@@ -95,6 +95,7 @@ func getEventInvalidUuid(t *testing.T) {
 
 func TestGroups(t *testing.T) {
 	t.Run("Before", func(t *testing.T) {
+		CreateDbTable(db)
 		DeleteEvents(db)
 	})
 
@@ -115,6 +116,7 @@ func TestGroups(t *testing.T) {
 	})
 
 	t.Run("After", func(t *testing.T) {
+		DropDbTable(db)
 		db.Close()
 	})
 }

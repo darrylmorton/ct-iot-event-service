@@ -41,6 +41,45 @@ func DbConnection() *sql.DB {
 	return db
 }
 
+func CreateDbTable(db *sql.DB) error {
+	query := `
+		CREATE TABLE events(
+			id uuid PRIMARY KEY UNIQUE DEFAULT gen_random_uuid() NOT NULL,
+			device_name VARCHAR NOT NULL,
+			description VARCHAR NOT NULL,
+			type VARCHAR NOT NULL ,
+			event VARCHAR NOT NULL,
+			read BOOLEAN DEFAULT FALSE,
+			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+		);
+		
+		CREATE INDEX updated_at ON events (updated_at);
+	`
+
+	_, err := db.Query(query)
+	if err != nil {
+		fmt.Errorf("DeleteEventsErr %v", err)
+		return err
+	}
+
+	return nil
+}
+
+func DropDbTable(db *sql.DB) error {
+	query := `
+		DROP TABLE events
+	`
+
+	_, err := db.Query(query)
+	if err != nil {
+		fmt.Errorf("DeleteEventsErr %v", err)
+		return err
+	}
+
+	return nil
+}
+
 func DeleteEvents(db *sql.DB) error {
 	query := `
 		DELETE FROM events
