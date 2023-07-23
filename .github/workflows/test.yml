@@ -31,4 +31,4 @@ jobs:
           time: '30s'
 
       - name: Test
-        run: make test
+        run: make run-dev & make test
