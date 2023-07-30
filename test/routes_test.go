@@ -1,6 +1,7 @@
 package test
 
 import (
+	"github.com/darrylmorton/ct-iot-event-service/internal/app"
 	"testing"
 )
 
@@ -24,7 +25,7 @@ func getHealthCheckSuccess(t *testing.T) {
 func getEventsSuccess(t *testing.T) {
 	expectedStatusCode := 200
 
-	payload := CreateEventPayload()
+	payload := Events[2] // CreateEventPayload()
 	expectedResult, _ := CreateEvent(db, payload)
 
 	actualStatusCode, actualResult := GetEvents()
@@ -33,7 +34,7 @@ func getEventsSuccess(t *testing.T) {
 		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
 	}
 
-	AssertEvents([]Event{expectedResult}, actualResult, t)
+	AssertEvents([]app.Event{expectedResult}, actualResult, t)
 }
 
 func putEventSuccess(t *testing.T) {
@@ -56,7 +57,7 @@ func putEventSuccess(t *testing.T) {
 func putEventInvalidUuid(t *testing.T) {
 	expectedStatusCode := 400
 
-	actualStatusCode, _ := PutEvent("1", Event{})
+	actualStatusCode, _ := PutEvent("1", app.Event{})
 
 	if expectedStatusCode != actualStatusCode {
 		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
@@ -66,7 +67,7 @@ func putEventInvalidUuid(t *testing.T) {
 func putEventNotFound(t *testing.T) {
 	expectedStatusCode := 404
 
-	actualStatusCode, _ := PutEvent(eventNotFoundId, Event{})
+	actualStatusCode, _ := PutEvent(eventNotFoundId, app.Event{})
 
 	if expectedStatusCode != actualStatusCode {
 		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
@@ -107,14 +108,40 @@ func getEventNotFound(t *testing.T) {
 	}
 }
 
+func getMessages(t *testing.T) {
+	expectedStatusCode := 200
+
+	expectedResult := []app.Event{}
+	expectedResult = append(expectedResult, Events[0], Events[1])
+
+	//time.Sleep(10 * time.Second)
+
+	actualStatusCode, actualResult := GetEvents()
+
+	if expectedStatusCode != actualStatusCode {
+		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
+	}
+
+	AssertEvents(expectedResult, actualResult, t)
+}
+
 func TestGroups(t *testing.T) {
 	t.Run("Before", func(t *testing.T) {
+		DropDbTable(db)
 		CreateDbTable(db)
-		DeleteEvents(db)
+
+		srv := StartServer()
+		go srv.ListenAndServe()
 	})
 
 	t.Run("Health Check", func(t *testing.T) {
 		t.Run("Success", getHealthCheckSuccess)
+	})
+
+	t.Run("Get Messages", func(t *testing.T) {
+		t.Run("Success", getMessages)
+
+		DeleteEvents(db)
 	})
 
 	t.Run("Get Events", func(t *testing.T) {
@@ -131,10 +158,5 @@ func TestGroups(t *testing.T) {
 		t.Run("Success", getEventSuccess)
 		t.Run("Invalid uuid", getEventInvalidUuid)
 		t.Run("Not found", getEventNotFound)
-	})
-
-	t.Run("After", func(t *testing.T) {
-		DropDbTable(db)
-		db.Close()
 	})
 }

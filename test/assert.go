@@ -1,6 +1,7 @@
 package test
 
 import (
+	"github.com/darrylmorton/ct-iot-event-service/internal/app"
 	"github.com/google/uuid"
 	"testing"
 )
@@ -17,7 +18,7 @@ func AssertHealthCheck(expectedResult HealthCheck, actualResult HealthCheck, t *
 	}
 }
 
-func AssertEvent(expectedResult Event, actualResult Event, t *testing.T) {
+func AssertEvent(expectedResult app.Event, actualResult app.Event, t *testing.T) {
 	_, err := uuid.Parse(actualResult.Id)
 	if err != nil {
 		t.Errorf("invalid uuid: %v", actualResult.Id)
@@ -36,7 +37,7 @@ func AssertEvent(expectedResult Event, actualResult Event, t *testing.T) {
 	}
 }
 
-func AssertEvents(expectedResult []Event, actualResult []Event, t *testing.T) {
+func AssertEvents(expectedResult []app.Event, actualResult []app.Event, t *testing.T) {
 	if len(expectedResult) != len(actualResult) {
 		t.Errorf("expected: %v, actual: %v", len(expectedResult), len(actualResult))
 	}

@@ -4,14 +4,41 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/aws/aws-sdk-go/aws"
+	"github.com/aws/aws-sdk-go/service/sqs"
+	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
 	"github.com/darrylmorton/ct-iot-event-service/client"
+	"github.com/darrylmorton/ct-iot-event-service/internal/app"
 	_ "github.com/lib/pq"
 	"log"
+	"net/http"
 	"os"
-	"time"
 )
 
 var envs = client.CreateEnvs("", "", "", "v1")
+
+var Events = []app.Event{
+	{
+		DeviceName:  "esp32-2424242424",
+		Description: "Maximum threshold reached",
+		Type:        "temperature",
+		Event:       "TEMPERATURE_MAX_THRESHOLD",
+		Read:        false,
+	},
+	{
+		DeviceName:  "esp32-4646464646",
+		Description: "Minimum threshold reached",
+		Type:        "temperature",
+		Event:       "TEMPERATURE_MIN_THRESHOLD",
+		Read:        false,
+	}, {
+		DeviceName:  "esp32-0123456789",
+		Description: "Maximum threshold reached",
+		Type:        "temperature",
+		Event:       "TEMPERATURE_MAX_THRESHOLD",
+		Read:        false,
+	},
+}
 
 func createHeaders() map[string]string {
 	headers := make(map[string]string)
@@ -43,7 +70,7 @@ func DbConnection() *sql.DB {
 
 func CreateDbTable(db *sql.DB) error {
 	query := `
-		CREATE TABLE events(
+		CREATE TABLE IF NOT EXISTS events(
 			id uuid PRIMARY KEY UNIQUE DEFAULT gen_random_uuid() NOT NULL,
 			device_name VARCHAR NOT NULL,
 			description VARCHAR NOT NULL,
@@ -68,7 +95,7 @@ func CreateDbTable(db *sql.DB) error {
 
 func DropDbTable(db *sql.DB) error {
 	query := `
-		DROP TABLE events
+		DROP TABLE IF EXISTS events
 	`
 
 	_, err := db.Query(query)
@@ -94,14 +121,14 @@ func DeleteEvents(db *sql.DB) error {
 	return nil
 }
 
-func CreateEvent(db *sql.DB, data Event) (Event, error) {
+func CreateEvent(db *sql.DB, data app.Event) (app.Event, error) {
 	query := `
 		INSERT INTO events (device_name, description, type, event, read)
 		VALUES ($1, $2, $3, $4, $5)
 		RETURNING id, device_name AS deviceName, description, type, event, read
 	`
 
-	var event Event
+	var event app.Event
 
 	args := []interface{}{data.DeviceName, data.Description, data.Type, data.Event, data.Read}
 	row := db.QueryRow(query, args...)
@@ -116,37 +143,50 @@ func CreateEvent(db *sql.DB, data Event) (Event, error) {
 	)
 
 	if err != nil {
-		return Event{}, err
+		return app.Event{}, err
 	}
 
 	return event, err
+}
+
+type mockedReceiveMsgs struct {
+	sqsiface.SQSAPI
+	Resp sqs.ReceiveMessageOutput
+}
+
+func (m mockedReceiveMsgs) ReceiveMessage(in *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
+	// Only need to return mocked response output
+	return &m.Resp, nil
+}
+
+func CreateMessages() sqs.ReceiveMessageOutput {
+	messageOne := Events[0]
+	messageOneMarshalled, _ := json.Marshal(messageOne)
+
+	messageTwo := Events[1]
+	messageTwoMarshalled, _ := json.Marshal(messageTwo)
+
+	return sqs.ReceiveMessageOutput{
+		Messages: []*sqs.Message{
+			{Body: aws.String(string(messageOneMarshalled))},
+			{Body: aws.String(string(messageTwoMarshalled))},
+		},
+	}
+}
+
+func StartServer() *http.Server {
+	q := app.Queue{
+		Client: mockedReceiveMsgs{Resp: CreateMessages()},
+		URL:    fmt.Sprintf("mockURL_%d", 0),
+	}
+
+	return app.StartServer(q)
 }
 
 type HealthCheck struct {
 	Version     string `json:"version,omitempty"`
 	Status      string `json:"status,omitempty"`
 	Environment string `json:"environment,omitempty"`
-}
-
-type Event struct {
-	Id          string    `json:"id,omitempty"`
-	DeviceName  string    `json:"deviceName,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Type        string    `json:"type,omitempty"`
-	Event       string    `json:"event,omitempty"`
-	Read        bool      `json:"read,omitempty"`
-	CreatedAt   time.Time `json:"createdAt,omitempty"`
-	UpdatedAt   time.Time `json:"updatedAt,omitempty"`
-}
-
-func CreateEventPayload() Event {
-	return Event{
-		DeviceName:  "esp32-0123456789",
-		Description: "Maximum threshold reached",
-		Type:        "temperature",
-		Event:       "TEMPERATURE_MAX_THRESHOLD",
-		Read:        false,
-	}
 }
 
 func GetHealthCheck() (int, HealthCheck) {
@@ -164,7 +204,7 @@ func GetHealthCheck() (int, HealthCheck) {
 	return GetHealthCheckResponse(res)
 }
 
-func PutEvent(id string, payload Event) (int, Event) {
+func PutEvent(id string, payload app.Event) (int, app.Event) {
 	url := fmt.Sprintf("%s/events/%s", envs.ClientUrl, id)
 
 	payloadMarshalled, _ := json.Marshal(payload)
@@ -181,7 +221,7 @@ func PutEvent(id string, payload Event) (int, Event) {
 	return PutEventResponse(res)
 }
 
-func GetEvents() (int, []Event) {
+func GetEvents() (int, []app.Event) {
 	url := fmt.Sprintf("%s/events", envs.ClientUrl)
 
 	requestOptions := client.RequestOptions{
@@ -196,7 +236,7 @@ func GetEvents() (int, []Event) {
 	return GetEventsResponse(res)
 }
 
-func GetEvent(id string) (int, Event) {
+func GetEvent(id string) (int, app.Event) {
 	url := fmt.Sprintf("%s/events/%s", envs.ClientUrl, id)
 
 	requestOptions := client.RequestOptions{

@@ -3,6 +3,7 @@ package test
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/darrylmorton/ct-iot-event-service/internal/app"
 	"io"
 	"net/http"
 )
@@ -30,7 +31,7 @@ func GetHealthCheckResponse(res *http.Response) (int, HealthCheck) {
 	return statusCode, responseObj
 }
 
-func PutEventResponse(res *http.Response) (int, Event) {
+func PutEventResponse(res *http.Response) (int, app.Event) {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
@@ -47,13 +48,13 @@ func PutEventResponse(res *http.Response) (int, Event) {
 		fmt.Println(err.Error())
 	}
 
-	var responseObj Event
+	var responseObj app.Event
 	json.Unmarshal(body, &responseObj)
 
 	return statusCode, responseObj
 }
 
-func GetEventsResponse(res *http.Response) (int, []Event) {
+func GetEventsResponse(res *http.Response) (int, []app.Event) {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
@@ -70,13 +71,13 @@ func GetEventsResponse(res *http.Response) (int, []Event) {
 		fmt.Println(err.Error())
 	}
 
-	var responseObj []Event
+	var responseObj []app.Event
 	json.Unmarshal(body, &responseObj)
 
 	return statusCode, responseObj
 }
 
-func GetEventResponse(res *http.Response) (int, Event) {
+func GetEventResponse(res *http.Response) (int, app.Event) {
 	defer func(Body io.ReadCloser) {
 		err := Body.Close()
 		if err != nil {
@@ -93,7 +94,7 @@ func GetEventResponse(res *http.Response) (int, Event) {
 		fmt.Println(err.Error())
 	}
 
-	var responseObj Event
+	var responseObj app.Event
 	json.Unmarshal(body, &responseObj)
 
 	return statusCode, responseObj

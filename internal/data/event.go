@@ -7,6 +7,7 @@ import (
 	"time"
 )
 
+// TODO missing Date string
 type Event struct {
 	Id          string    `json:"id"`
 	DeviceName  string    `json:"deviceName"`

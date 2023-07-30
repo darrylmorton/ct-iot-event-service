@@ -1,4 +1,4 @@
-package main
+package app
 
 import (
 	"github.com/darrylmorton/ct-iot-event-service/internal/data"
@@ -23,6 +23,7 @@ func (app *application) getEvents(c *gin.Context) {
 	c.Header("Content-Type", "application/json")
 
 	results, err := app.models.Events.GetEvents()
+	app.logger.Printf("** getEvents - err", err)
 	if err != nil {
 		http.Error(c.Writer, http.StatusText(http.StatusInternalServerError), http.StatusInternalServerError)
 		return
