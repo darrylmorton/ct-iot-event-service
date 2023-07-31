@@ -111,7 +111,7 @@ func getEventNotFound(t *testing.T) {
 func getMessages(t *testing.T) {
 	expectedStatusCode := 200
 
-	expectedResult := []app.Event{}
+	var expectedResult []app.Event
 	expectedResult = append(expectedResult, Events[0], Events[1])
 
 	actualStatusCode, actualResult := GetEvents()
@@ -138,11 +138,11 @@ func TestGroups(t *testing.T) {
 
 	t.Run("Get Messages", func(t *testing.T) {
 		t.Run("Success", getMessages)
-
-		DeleteEvents(db)
 	})
 
 	t.Run("Get Events", func(t *testing.T) {
+		DeleteEvents(db)
+
 		t.Run("Success", getEventsSuccess)
 	})
 
