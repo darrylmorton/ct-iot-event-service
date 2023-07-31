@@ -114,8 +114,6 @@ func getMessages(t *testing.T) {
 	expectedResult := []app.Event{}
 	expectedResult = append(expectedResult, Events[0], Events[1])
 
-	//time.Sleep(10 * time.Second)
-
 	actualStatusCode, actualResult := GetEvents()
 
 	if expectedStatusCode != actualStatusCode {
