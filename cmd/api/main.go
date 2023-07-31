@@ -17,5 +17,5 @@ func main() {
 
 	srv := app.StartServer(q)
 	err := srv.ListenAndServe()
-	fmt.Errorf(err.Error())
+	fmt.Printf("The server has encountered an error: %v", err)
 }
