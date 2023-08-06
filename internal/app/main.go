@@ -1,113 +1,106 @@
 package app
 
 import (
+	"context"
 	"database/sql"
-	"flag"
+	"encoding/json"
 	"fmt"
-	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/darrylmorton/ct-iot-event-service/internal/data"
+	"github.com/darrylmorton/ct-iot-event-service/internal/models"
 	_ "github.com/lib/pq"
 	"log"
 	"net/http"
-	"os"
 	"time"
 )
 
-const version = "0.0.1"
+const Version = "0.0.1"
+const QueueName = "thing-payloads"
 
-type config struct {
-	port int
-	env  string
-	dsn  string
+type EnvConfig struct {
+	Port int
+	Env  string
+	Dsn  string
 }
 
-type application struct {
-	config config
+type Application struct {
+	config EnvConfig
 	logger *log.Logger
 	models data.Models
 }
 
-type Event struct {
-	Id          string    `json:"id,omitempty"`
-	DeviceName  string    `json:"deviceName,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Type        string    `json:"type,omitempty"`
-	Event       string    `json:"event,omitempty"`
-	Read        bool      `json:"read,omitempty"`
-	CreatedAt   time.Time `json:"createdAt,omitempty"`
-	UpdatedAt   time.Time `json:"updatedAt,omitempty"`
+type SQSReceiveMessageImpl struct{}
+
+type ServiceConfig struct {
+	EnvConfig              EnvConfig
+	SqsReceiveMessageInput *sqs.ReceiveMessageInput
+	SqsClient              SQSReceiveMessageAPI
+	DbClient               *sql.DB
+	Logger                 *log.Logger
+	Models                 data.Models
 }
 
-// Queue provides the ability to handle SQS messages.
-type Queue struct {
-	Client sqsiface.SQSAPI
-	URL    string
+type SQSReceiveMessageAPI interface {
+	GetQueueUrl(ctx context.Context,
+		params *sqs.GetQueueUrlInput,
+		optFns ...func(*sqs.Options)) (*sqs.GetQueueUrlOutput, error)
+
+	ReceiveMessage(ctx context.Context,
+		params *sqs.ReceiveMessageInput,
+		optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error)
 }
 
-type ValueUnit struct {
-	Value int    `json:"value"`
-	Unit  string `json:"unit"`
+func GetQueueURL(c context.Context, api SQSReceiveMessageAPI, input *sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error) {
+	return api.GetQueueUrl(c, input)
 }
 
-type Temperature struct {
-	Value      int    `json:"value"`
-	Unit       string `json:"unit"`
-	Connection string `json:"connection"`
+func GetMessages(c context.Context, api SQSReceiveMessageAPI, input *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
+	return api.ReceiveMessage(c, input)
 }
 
-type Humidity struct {
-	Value         int    `json:"value"`
-	Unit          string `json:"unit"`
-	Connection    string `json:"connection"`
-	Precipitation bool   `json:"precipitation"`
-}
-
-type Payload struct {
-	Cadence     ValueUnit   `json:"cadence"`
-	Battery     ValueUnit   `json:"battery"`
-	Temperature Temperature `json:"temperature"`
-	Humidity    Humidity    `json:"humidity"`
-}
-
-// Message is a concrete representation of the SQS message
-type Message struct {
-	DeviceId         string  `json:"deviceId"`
-	PayloadTimestamp string  `json:"payloadTimestamp"`
-	Payload          Payload `json:"payload"`
-}
-
-func StartServer(q Queue) *http.Server {
-	var cfg config
-
-	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-	flag.StringVar(&cfg.env, "env", "dev", "Environment (dev|stage|prod)")
-	flag.StringVar(&cfg.dsn, "db-dsn", os.Getenv("EVENTS_DB_DSN"), "PostgreSQL DSN")
-	flag.Parse()
-
-	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
-
-	db, err := sql.Open("postgres", cfg.dsn)
+func StartServer(serviceConfig *ServiceConfig) *http.Server {
+	err := serviceConfig.DbClient.Ping()
 	if err != nil {
-		logger.Fatal(err)
+		serviceConfig.Logger.Fatal(err)
+	}
+	serviceConfig.Logger.Printf("database connection pool established")
+
+	app := &Application{
+		config: serviceConfig.EnvConfig,
+		logger: serviceConfig.Logger,
+		models: data.NewModels(serviceConfig.DbClient),
 	}
 
-	//defer db.Close()
+	go func() {
+		result, err := GetMessages(context.Background(), serviceConfig.SqsClient, serviceConfig.SqsReceiveMessageInput)
+		if err != nil {
+			serviceConfig.Logger.Printf("Error starting message consumer:%v\n", err)
+		}
 
-	err = db.Ping()
-	if err != nil {
-		logger.Fatal(err)
-	}
-	logger.Printf("database connection pool established")
+		messagesUnmarshalled := make([]models.Event, 0)
 
-	app := &application{
-		config: cfg,
-		logger: logger,
-		models: data.NewModels(db),
-	}
+		for _, item := range result.Messages {
+			var unmarshalledMessage = models.Event{}
+			var myMessage = *item.Body
 
-	go q.GetMessages(db, 20)
+			err := json.Unmarshal([]byte(myMessage), &unmarshalledMessage)
+			if err != nil {
+				serviceConfig.Logger.Printf("Error unmarshalling message:%v\n", err)
+			} else {
+				messagesUnmarshalled = append(messagesUnmarshalled, unmarshalledMessage)
+			}
+		}
 
-	addr := fmt.Sprintf(":%d", cfg.port)
+		if len(messagesUnmarshalled) != 0 {
+			_, err := serviceConfig.Models.Events.PostEvents(messagesUnmarshalled)
+			if err != nil {
+				serviceConfig.Logger.Printf("Error added message to database:%v\n", err)
+			}
+		}
+
+	}()
+
+	addr := fmt.Sprintf(":%d", serviceConfig.EnvConfig.Port)
 
 	srv := &http.Server{
 		Addr:         addr,
@@ -116,7 +109,7 @@ func StartServer(q Queue) *http.Server {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
-	logger.Printf("starting %s server on %s", cfg.env, addr)
+	serviceConfig.Logger.Printf("starting %v server on %s", serviceConfig.EnvConfig, addr)
 
 	return srv
 }

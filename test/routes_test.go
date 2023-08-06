@@ -1,11 +1,11 @@
 package test
 
 import (
-	"github.com/darrylmorton/ct-iot-event-service/internal/app"
+	"github.com/darrylmorton/ct-iot-event-service/internal/models"
 	"testing"
 )
 
-var db = DbConnection()
+var dbConfig = DbConfig{Client: DbClient()}
 var eventNotFoundId = "00000000-0000-0000-0000-000000000000"
 
 func getHealthCheckSuccess(t *testing.T) {
@@ -22,11 +22,12 @@ func getHealthCheckSuccess(t *testing.T) {
 	AssertHealthCheck(expectedResult, actualResult, t)
 }
 
-func getEventsSuccess(t *testing.T) {
+func getMessages(t *testing.T) {
+
 	expectedStatusCode := 200
 
-	payload := Events[2] // CreateEventPayload()
-	expectedResult, _ := CreateEvent(db, payload)
+	var expectedResult []models.Event
+	expectedResult = append(expectedResult, Events[0], Events[1])
 
 	actualStatusCode, actualResult := GetEvents()
 
@@ -34,7 +35,22 @@ func getEventsSuccess(t *testing.T) {
 		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
 	}
 
-	AssertEvents([]app.Event{expectedResult}, actualResult, t)
+	AssertEvents(expectedResult, actualResult, t)
+}
+
+func getEventsSuccess(t *testing.T) {
+	expectedStatusCode := 200
+
+	payload := Events[2]
+	expectedResult, _ := dbConfig.CreateEvent(payload)
+
+	actualStatusCode, actualResult := GetEvents()
+
+	if expectedStatusCode != actualStatusCode {
+		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
+	}
+
+	AssertEvents([]models.Event{expectedResult}, actualResult, t)
 }
 
 func putEventSuccess(t *testing.T) {
@@ -57,7 +73,7 @@ func putEventSuccess(t *testing.T) {
 func putEventInvalidUuid(t *testing.T) {
 	expectedStatusCode := 400
 
-	actualStatusCode, _ := PutEvent("1", app.Event{})
+	actualStatusCode, _ := PutEvent("1", models.Event{})
 
 	if expectedStatusCode != actualStatusCode {
 		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
@@ -67,7 +83,7 @@ func putEventInvalidUuid(t *testing.T) {
 func putEventNotFound(t *testing.T) {
 	expectedStatusCode := 404
 
-	actualStatusCode, _ := PutEvent(eventNotFoundId, app.Event{})
+	actualStatusCode, _ := PutEvent(eventNotFoundId, models.Event{})
 
 	if expectedStatusCode != actualStatusCode {
 		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
@@ -108,25 +124,10 @@ func getEventNotFound(t *testing.T) {
 	}
 }
 
-func getMessages(t *testing.T) {
-	expectedStatusCode := 200
-
-	var expectedResult []app.Event
-	expectedResult = append(expectedResult, Events[0], Events[1])
-
-	actualStatusCode, actualResult := GetEvents()
-
-	if expectedStatusCode != actualStatusCode {
-		t.Errorf("expected: %v, actual: %v", expectedStatusCode, actualStatusCode)
-	}
-
-	AssertEvents(expectedResult, actualResult, t)
-}
-
 func TestGroups(t *testing.T) {
 	t.Run("Before", func(t *testing.T) {
-		DropDbTable(db)
-		CreateDbTable(db)
+		dbConfig.DropDbTable()
+		dbConfig.CreateDbTable()
 
 		srv := StartServer()
 		go srv.ListenAndServe()
@@ -141,7 +142,7 @@ func TestGroups(t *testing.T) {
 	})
 
 	t.Run("Get Events", func(t *testing.T) {
-		DeleteEvents(db)
+		dbConfig.DeleteEvents()
 
 		t.Run("Success", getEventsSuccess)
 	})

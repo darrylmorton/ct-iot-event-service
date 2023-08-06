@@ -1,7 +1,7 @@
 package test
 
 import (
-	"github.com/darrylmorton/ct-iot-event-service/internal/app"
+	"github.com/darrylmorton/ct-iot-event-service/internal/models"
 	"github.com/google/uuid"
 	"testing"
 )
@@ -18,13 +18,13 @@ func AssertHealthCheck(expectedResult HealthCheck, actualResult HealthCheck, t *
 	}
 }
 
-func AssertEvent(expectedResult app.Event, actualResult app.Event, t *testing.T) {
+func AssertEvent(expectedResult models.Event, actualResult models.Event, t *testing.T) {
 	_, err := uuid.Parse(actualResult.Id)
 	if err != nil {
 		t.Errorf("invalid uuid: %v", actualResult.Id)
 	}
-	if expectedResult.DeviceName != actualResult.DeviceName {
-		t.Errorf("expected: %v, actual: %v", expectedResult.DeviceName, actualResult.DeviceName)
+	if expectedResult.DeviceId != actualResult.DeviceId {
+		t.Errorf("expected: %v, actual: %v", expectedResult.DeviceId, actualResult.DeviceId)
 	}
 	if expectedResult.Type != actualResult.Type {
 		t.Errorf("expected: %v, actual: %v", expectedResult.Type, actualResult.Type)
@@ -37,7 +37,7 @@ func AssertEvent(expectedResult app.Event, actualResult app.Event, t *testing.T)
 	}
 }
 
-func AssertEvents(expectedResult []app.Event, actualResult []app.Event, t *testing.T) {
+func AssertEvents(expectedResult []models.Event, actualResult []models.Event, t *testing.T) {
 	if len(expectedResult) != len(actualResult) {
 		t.Errorf("expected: %v, actual: %v", len(expectedResult), len(actualResult))
 	}

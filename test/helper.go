@@ -1,14 +1,18 @@
 package test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
-	"github.com/aws/aws-sdk-go/aws"
-	"github.com/aws/aws-sdk-go/service/sqs"
-	"github.com/aws/aws-sdk-go/service/sqs/sqsiface"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/darrylmorton/ct-iot-event-service/client"
 	"github.com/darrylmorton/ct-iot-event-service/internal/app"
+	"github.com/darrylmorton/ct-iot-event-service/internal/data"
+	"github.com/darrylmorton/ct-iot-event-service/internal/models"
 	_ "github.com/lib/pq"
 	"log"
 	"net/http"
@@ -17,27 +21,74 @@ import (
 
 var envs = client.CreateEnvs("", "", "", "v1")
 
-var Events = []app.Event{
+var Events = []models.Event{
 	{
-		DeviceName:  "esp32-2424242424",
+		DeviceId:    "esp32-2424242424",
 		Description: "Maximum threshold reached",
 		Type:        "temperature",
 		Event:       "TEMPERATURE_MAX_THRESHOLD",
 		Read:        false,
 	},
 	{
-		DeviceName:  "esp32-4646464646",
+		DeviceId:    "esp32-4646464646",
 		Description: "Minimum threshold reached",
 		Type:        "temperature",
 		Event:       "TEMPERATURE_MIN_THRESHOLD",
 		Read:        false,
 	}, {
-		DeviceName:  "esp32-0123456789",
+		DeviceId:    "esp32-0123456789",
 		Description: "Maximum threshold reached",
 		Type:        "temperature",
 		Event:       "TEMPERATURE_MAX_THRESHOLD",
 		Read:        false,
 	},
+}
+
+type DbConfig struct {
+	Client *sql.DB
+}
+
+type SQSReceiveMessageImpl struct{}
+
+func (dt SQSReceiveMessageImpl) GetQueueUrl(ctx context.Context,
+	params *sqs.GetQueueUrlInput,
+	optFns ...func(*sqs.Options)) (*sqs.GetQueueUrlOutput, error) {
+
+	output := &sqs.GetQueueUrlOutput{
+		QueueUrl: aws.String(app.QueueName),
+	}
+
+	return output, nil
+}
+
+func (dt SQSReceiveMessageImpl) ReceiveMessage(ctx context.Context,
+	params *sqs.ReceiveMessageInput,
+	optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error) {
+
+	messageOne := Events[0]
+	messageOneMarshalled, _ := json.Marshal(messageOne)
+
+	messageTwo := Events[1]
+	messageTwoMarshalled, _ := json.Marshal(messageTwo)
+
+	messages := []types.Message{
+		{
+			MessageId:     aws.String("message-one-id"),
+			ReceiptHandle: aws.String("message-one-receipt-handle"),
+			Body:          aws.String(string(messageOneMarshalled)),
+		},
+		{
+			MessageId:     aws.String("message-two-id"),
+			ReceiptHandle: aws.String("message-two-receipt-handle"),
+			Body:          aws.String(string(messageTwoMarshalled)),
+		},
+	}
+
+	output := &sqs.ReceiveMessageOutput{
+		Messages: messages,
+	}
+
+	return output, nil
 }
 
 func createHeaders() map[string]string {
@@ -48,7 +99,7 @@ func createHeaders() map[string]string {
 	return headers
 }
 
-func DbConnection() *sql.DB {
+func DbClient() *sql.DB {
 	dbDsn := os.Getenv("EVENTS_DB_DSN")
 
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
@@ -68,11 +119,11 @@ func DbConnection() *sql.DB {
 	return db
 }
 
-func CreateDbTable(db *sql.DB) error {
+func (config *DbConfig) CreateDbTable() error {
 	query := `
 		CREATE TABLE IF NOT EXISTS events(
 			id uuid PRIMARY KEY UNIQUE DEFAULT gen_random_uuid() NOT NULL,
-			device_name VARCHAR NOT NULL,
+			device_id VARCHAR NOT NULL,
 			description VARCHAR NOT NULL,
 			type VARCHAR NOT NULL ,
 			event VARCHAR NOT NULL,
@@ -84,7 +135,7 @@ func CreateDbTable(db *sql.DB) error {
 		CREATE INDEX updated_at ON events (updated_at);
 	`
 
-	_, err := db.Query(query)
+	_, err := config.Client.Query(query)
 	if err != nil {
 		fmt.Errorf("DeleteEventsErr %v", err)
 		return err
@@ -93,12 +144,12 @@ func CreateDbTable(db *sql.DB) error {
 	return nil
 }
 
-func DropDbTable(db *sql.DB) error {
+func (config *DbConfig) DropDbTable() error {
 	query := `
 		DROP TABLE IF EXISTS events
 	`
 
-	_, err := db.Query(query)
+	_, err := config.Client.Query(query)
 	if err != nil {
 		fmt.Errorf("DeleteEventsErr %v", err)
 		return err
@@ -107,12 +158,12 @@ func DropDbTable(db *sql.DB) error {
 	return nil
 }
 
-func DeleteEvents(db *sql.DB) error {
+func (config *DbConfig) DeleteEvents() error {
 	query := `
 		DELETE FROM events
 	`
 
-	_, err := db.Query(query)
+	_, err := config.Client.Query(query)
 	if err != nil {
 		fmt.Errorf("DeleteEventsErr %v", err)
 		return err
@@ -121,21 +172,21 @@ func DeleteEvents(db *sql.DB) error {
 	return nil
 }
 
-func CreateEvent(db *sql.DB, data app.Event) (app.Event, error) {
+func (dbConfig *DbConfig) CreateEvent(data models.Event) (models.Event, error) {
 	query := `
-		INSERT INTO events (device_name, description, type, event, read)
+		INSERT INTO events (device_id, description, type, event, read)
 		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, device_name AS deviceName, description, type, event, read
+		RETURNING id, device_id AS deviceId, description, type, event, read
 	`
 
-	var event app.Event
+	var event models.Event
 
-	args := []interface{}{data.DeviceName, data.Description, data.Type, data.Event, data.Read}
-	row := db.QueryRow(query, args...)
+	args := []interface{}{data.DeviceId, data.Description, data.Type, data.Event, data.Read}
+	row := dbConfig.Client.QueryRow(query, args...)
 
 	err := row.Scan(
 		&event.Id,
-		&event.DeviceName,
+		&event.DeviceId,
 		&event.Description,
 		&event.Type,
 		&event.Event,
@@ -143,44 +194,58 @@ func CreateEvent(db *sql.DB, data app.Event) (app.Event, error) {
 	)
 
 	if err != nil {
-		return app.Event{}, err
+		return models.Event{}, err
 	}
 
 	return event, err
 }
 
-type mockedReceiveMsgs struct {
-	sqsiface.SQSAPI
-	Resp sqs.ReceiveMessageOutput
-}
-
-func (m mockedReceiveMsgs) ReceiveMessage(in *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
-	// Only need to return mocked response output
-	return &m.Resp, nil
-}
-
-func CreateMessages() sqs.ReceiveMessageOutput {
-	messageOne := Events[0]
-	messageOneMarshalled, _ := json.Marshal(messageOne)
-
-	messageTwo := Events[1]
-	messageTwoMarshalled, _ := json.Marshal(messageTwo)
-
-	return sqs.ReceiveMessageOutput{
-		Messages: []*sqs.Message{
-			{Body: aws.String(string(messageOneMarshalled))},
-			{Body: aws.String(string(messageTwoMarshalled))},
-		},
-	}
-}
-
 func StartServer() *http.Server {
-	q := app.Queue{
-		Client: mockedReceiveMsgs{Resp: CreateMessages()},
-		URL:    fmt.Sprintf("mockURL_%d", 0),
+	var envConfig app.EnvConfig
+
+	flag.IntVar(&envConfig.Port, "port", 4000, "API server port")
+	flag.StringVar(&envConfig.Env, "env", "dev", "Environment (dev|stage|prod)")
+	flag.StringVar(&envConfig.Dsn, "db-dsn", os.Getenv("EVENTS_DB_DSN"), "PostgreSQL DSN")
+	flag.Parse()
+
+	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
+
+	dbClient, err := sql.Open("postgres", envConfig.Dsn)
+	if err != nil {
+		logger.Fatal(err)
 	}
 
-	return app.StartServer(q)
+	sqsClient := &SQSReceiveMessageImpl{}
+	timeout := 20
+	queueUrlInput := &sqs.GetQueueUrlInput{
+		QueueName: aws.String(app.QueueName),
+	}
+
+	urlResult, err := app.GetQueueURL(context.Background(), sqsClient, queueUrlInput)
+	if err != nil {
+		logger.Fatal(err)
+	}
+	queueURL := urlResult.QueueUrl
+
+	receiveMessageInput := &sqs.ReceiveMessageInput{
+		MessageAttributeNames: []string{
+			string(types.QueueAttributeNameAll),
+		},
+		QueueUrl:            queueURL,
+		MaxNumberOfMessages: 25,
+		VisibilityTimeout:   int32(timeout),
+	}
+
+	serviceConfig := app.ServiceConfig{
+		SqsClient:              sqsClient,
+		SqsReceiveMessageInput: receiveMessageInput,
+		DbClient:               dbClient,
+		Logger:                 logger,
+		Models:                 data.NewModels(dbClient),
+		EnvConfig:              envConfig,
+	}
+
+	return app.StartServer(&serviceConfig)
 }
 
 type HealthCheck struct {
@@ -204,7 +269,7 @@ func GetHealthCheck() (int, HealthCheck) {
 	return GetHealthCheckResponse(res)
 }
 
-func PutEvent(id string, payload app.Event) (int, app.Event) {
+func PutEvent(id string, payload models.Event) (int, models.Event) {
 	url := fmt.Sprintf("%s/events/%s", envs.ClientUrl, id)
 
 	payloadMarshalled, _ := json.Marshal(payload)
@@ -221,7 +286,7 @@ func PutEvent(id string, payload app.Event) (int, app.Event) {
 	return PutEventResponse(res)
 }
 
-func GetEvents() (int, []app.Event) {
+func GetEvents() (int, []models.Event) {
 	url := fmt.Sprintf("%s/events", envs.ClientUrl)
 
 	requestOptions := client.RequestOptions{
@@ -236,7 +301,7 @@ func GetEvents() (int, []app.Event) {
 	return GetEventsResponse(res)
 }
 
-func GetEvent(id string) (int, app.Event) {
+func GetEvent(id string) (int, models.Event) {
 	url := fmt.Sprintf("%s/events/%s", envs.ClientUrl, id)
 
 	requestOptions := client.RequestOptions{

@@ -9,7 +9,7 @@ import (
 
 type Event struct {
 	Id          string `json:"id"`
-	Name        string `json:"name"`
+	DeviceId    string `json:"deviceId"`
 	Description string `json:"description"`
 	Type        string `json:"type"`
 	Event       string `json:"event"`

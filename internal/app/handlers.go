@@ -1,26 +1,26 @@
 package app
 
 import (
-	"github.com/darrylmorton/ct-iot-event-service/internal/data"
+	"github.com/darrylmorton/ct-iot-event-service/internal/models"
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
 	"net/http"
 )
 
-func (app *application) healthCheck(c *gin.Context) {
-	c.Header("Content-Type", "application/json")
+func (app *Application) healthCheck(c *gin.Context) {
+	c.Header("Content-Type", "Application/json")
 
 	result := map[string]string{
 		"status":      "available",
-		"environment": app.config.env,
-		"version":     version,
+		"environment": app.config.Env,
+		"version":     Version,
 	}
 
 	c.IndentedJSON(200, result)
 }
 
-func (app *application) getEvents(c *gin.Context) {
-	c.Header("Content-Type", "application/json")
+func (app *Application) getEvents(c *gin.Context) {
+	c.Header("Content-Type", "Application/json")
 
 	results, err := app.models.Events.GetEvents()
 	if err != nil {
@@ -31,7 +31,7 @@ func (app *application) getEvents(c *gin.Context) {
 	c.IndentedJSON(200, results)
 }
 
-func (app *application) getEvent(c *gin.Context) {
+func (app *Application) getEvent(c *gin.Context) {
 	id := c.Param("id")
 
 	_, err := uuid.Parse(id)
@@ -41,7 +41,7 @@ func (app *application) getEvent(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Type", "application/json")
+	c.Header("Content-Type", "Application/json")
 
 	results, err, statusCode := app.models.Events.GetEvent(id)
 	if err != nil {
@@ -58,7 +58,7 @@ func (app *application) getEvent(c *gin.Context) {
 	c.IndentedJSON(200, results)
 }
 
-func (app *application) putEvent(c *gin.Context) {
+func (app *Application) putEvent(c *gin.Context) {
 	id := c.Param("id")
 
 	_, err := uuid.Parse(id)
@@ -74,9 +74,9 @@ func (app *application) putEvent(c *gin.Context) {
 		return
 	}
 
-	c.Header("Content-Type", "application/json")
+	c.Header("Content-Type", "Application/json")
 
-	var input = data.Event{}
+	var input = models.Event{}
 
 	err = app.readJSON(c.Writer, c.Request, &input)
 	if err != nil {
