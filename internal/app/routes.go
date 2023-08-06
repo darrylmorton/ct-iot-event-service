@@ -1,10 +1,10 @@
-package main
+package app
 
 import (
 	"github.com/gin-gonic/gin"
 )
 
-func (app *application) router() *gin.Engine {
+func (app *Application) router() *gin.Engine {
 	r := gin.Default()
 
 	v1 := r.Group("/v1")

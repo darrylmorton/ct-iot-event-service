@@ -1,17 +1,48 @@
 package test
 
 import (
+	"context"
 	"database/sql"
 	"encoding/json"
+	"flag"
 	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
 	"github.com/darrylmorton/ct-iot-event-service/client"
+	"github.com/darrylmorton/ct-iot-event-service/internal/app"
+	"github.com/darrylmorton/ct-iot-event-service/internal/data"
+	"github.com/darrylmorton/ct-iot-event-service/internal/models"
 	_ "github.com/lib/pq"
 	"log"
+	"net/http"
 	"os"
-	"time"
 )
 
 var envs = client.CreateEnvs("", "", "", "v1")
+
+var Events = []models.Event{
+	{
+		DeviceId:    "esp32-2424242424",
+		Description: "Maximum threshold reached",
+		Type:        "temperature",
+		Event:       "TEMPERATURE_MAX_THRESHOLD",
+		Read:        false,
+	},
+	{
+		DeviceId:    "esp32-4646464646",
+		Description: "Minimum threshold reached",
+		Type:        "temperature",
+		Event:       "TEMPERATURE_MIN_THRESHOLD",
+		Read:        false,
+	}, {
+		DeviceId:    "esp32-0123456789",
+		Description: "Maximum threshold reached",
+		Type:        "temperature",
+		Event:       "TEMPERATURE_MAX_THRESHOLD",
+		Read:        false,
+	},
+}
 
 func createHeaders() map[string]string {
 	headers := make(map[string]string)
@@ -21,132 +52,59 @@ func createHeaders() map[string]string {
 	return headers
 }
 
-func DbConnection() *sql.DB {
-	dbDsn := os.Getenv("EVENTS_DB_DSN")
+func StartServer() *http.Server {
+	var envConfig app.EnvConfig
+
+	flag.IntVar(&envConfig.Port, "port", 4000, "API server port")
+	flag.StringVar(&envConfig.Env, "env", "dev", "Environment (dev|stage|prod)")
+	flag.StringVar(&envConfig.Dsn, "db-dsn", os.Getenv("EVENTS_DB_DSN"), "PostgreSQL DSN")
+	flag.Parse()
 
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
-	db, err := sql.Open("postgres", dbDsn)
+	dbClient, err := sql.Open("postgres", envConfig.Dsn)
 	if err != nil {
 		logger.Fatal(err)
 	}
 
-	err = db.Ping()
+	sqsClient := &SQSReceiveMessageImpl{}
+	timeout := 20
+	queueUrlInput := &sqs.GetQueueUrlInput{
+		QueueName: aws.String(app.QueueName),
+	}
+
+	urlResult, err := app.GetQueueURL(context.Background(), sqsClient, queueUrlInput)
 	if err != nil {
 		logger.Fatal(err)
 	}
+	queueURL := urlResult.QueueUrl
 
-	logger.Printf("database connection pool established")
+	receiveMessageInput := &sqs.ReceiveMessageInput{
+		MessageAttributeNames: []string{
+			string(types.QueueAttributeNameAll),
+		},
 
-	return db
-}
-
-func CreateDbTable(db *sql.DB) error {
-	query := `
-		CREATE TABLE events(
-			id uuid PRIMARY KEY UNIQUE DEFAULT gen_random_uuid() NOT NULL,
-			device_name VARCHAR NOT NULL,
-			description VARCHAR NOT NULL,
-			type VARCHAR NOT NULL ,
-			event VARCHAR NOT NULL,
-			read BOOLEAN DEFAULT FALSE,
-			created_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
-			updated_at TIMESTAMP DEFAULT CURRENT_TIMESTAMP
-		);
-		
-		CREATE INDEX updated_at ON events (updated_at);
-	`
-
-	_, err := db.Query(query)
-	if err != nil {
-		fmt.Errorf("DeleteEventsErr %v", err)
-		return err
+		QueueUrl:            queueURL,
+		MaxNumberOfMessages: 25,
+		VisibilityTimeout:   int32(timeout),
 	}
 
-	return nil
-}
-
-func DropDbTable(db *sql.DB) error {
-	query := `
-		DROP TABLE events
-	`
-
-	_, err := db.Query(query)
-	if err != nil {
-		fmt.Errorf("DeleteEventsErr %v", err)
-		return err
+	serviceConfig := app.ServiceConfig{
+		SqsClient:              sqsClient,
+		SqsReceiveMessageInput: receiveMessageInput,
+		DbClient:               dbClient,
+		Logger:                 logger,
+		Models:                 data.NewModels(dbClient),
+		EnvConfig:              envConfig,
 	}
 
-	return nil
-}
-
-func DeleteEvents(db *sql.DB) error {
-	query := `
-		DELETE FROM events
-	`
-
-	_, err := db.Query(query)
-	if err != nil {
-		fmt.Errorf("DeleteEventsErr %v", err)
-		return err
-	}
-
-	return nil
-}
-
-func CreateEvent(db *sql.DB, data Event) (Event, error) {
-	query := `
-		INSERT INTO events (device_name, description, type, event, read)
-		VALUES ($1, $2, $3, $4, $5)
-		RETURNING id, device_name AS deviceName, description, type, event, read
-	`
-
-	var event Event
-
-	args := []interface{}{data.DeviceName, data.Description, data.Type, data.Event, data.Read}
-	row := db.QueryRow(query, args...)
-
-	err := row.Scan(
-		&event.Id,
-		&event.DeviceName,
-		&event.Description,
-		&event.Type,
-		&event.Event,
-		&event.Read,
-	)
-
-	if err != nil {
-		return Event{}, err
-	}
-
-	return event, err
+	return app.StartServer(&serviceConfig)
 }
 
 type HealthCheck struct {
 	Version     string `json:"version,omitempty"`
 	Status      string `json:"status,omitempty"`
 	Environment string `json:"environment,omitempty"`
-}
-
-type Event struct {
-	Id          string    `json:"id,omitempty"`
-	DeviceName  string    `json:"deviceName,omitempty"`
-	Description string    `json:"description,omitempty"`
-	Type        string    `json:"type,omitempty"`
-	Event       string    `json:"event,omitempty"`
-	Read        bool      `json:"read,omitempty"`
-	CreatedAt   time.Time `json:"createdAt,omitempty"`
-	UpdatedAt   time.Time `json:"updatedAt,omitempty"`
-}
-
-func CreateEventPayload() Event {
-	return Event{
-		DeviceName:  "esp32-0123456789",
-		Description: "Maximum threshold reached",
-		Type:        "temperature",
-		Event:       "TEMPERATURE_MAX_THRESHOLD",
-		Read:        false,
-	}
 }
 
 func GetHealthCheck() (int, HealthCheck) {
@@ -164,7 +122,7 @@ func GetHealthCheck() (int, HealthCheck) {
 	return GetHealthCheckResponse(res)
 }
 
-func PutEvent(id string, payload Event) (int, Event) {
+func PutEvent(id string, payload models.Event) (int, models.Event) {
 	url := fmt.Sprintf("%s/events/%s", envs.ClientUrl, id)
 
 	payloadMarshalled, _ := json.Marshal(payload)
@@ -181,7 +139,7 @@ func PutEvent(id string, payload Event) (int, Event) {
 	return PutEventResponse(res)
 }
 
-func GetEvents() (int, []Event) {
+func GetEvents() (int, []models.Event) {
 	url := fmt.Sprintf("%s/events", envs.ClientUrl)
 
 	requestOptions := client.RequestOptions{
@@ -196,7 +154,7 @@ func GetEvents() (int, []Event) {
 	return GetEventsResponse(res)
 }
 
-func GetEvent(id string) (int, Event) {
+func GetEvent(id string) (int, models.Event) {
 	url := fmt.Sprintf("%s/events/%s", envs.ClientUrl, id)
 
 	requestOptions := client.RequestOptions{

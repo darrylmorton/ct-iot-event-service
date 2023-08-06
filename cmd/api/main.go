@@ -1,73 +1,76 @@
 package main
 
 import (
+	"context"
 	"database/sql"
 	"flag"
-	"fmt"
+	"github.com/aws/aws-sdk-go-v2/aws"
+	"github.com/aws/aws-sdk-go-v2/config"
+	"github.com/aws/aws-sdk-go-v2/service/sqs"
+	"github.com/aws/aws-sdk-go-v2/service/sqs/types"
+	"github.com/darrylmorton/ct-iot-event-service/internal/app"
 	"github.com/darrylmorton/ct-iot-event-service/internal/data"
 	"log"
-	"net/http"
 	"os"
-	"time"
-
-	_ "github.com/lib/pq"
 )
 
-const version = "0.0.1"
-
-type config struct {
-	port int
-	env  string
-	dsn  string
-}
-
-type application struct {
-	config config
-	logger *log.Logger
-	models data.Models
-}
-
 func main() {
-	var cfg config
+	var envConfig app.EnvConfig
 
-	flag.IntVar(&cfg.port, "port", 4000, "API server port")
-	flag.StringVar(&cfg.env, "env", "dev", "Environment (dev|stage|prod)")
-	flag.StringVar(&cfg.dsn, "db-dsn", os.Getenv("EVENTS_DB_DSN"), "PostgreSQL DSN")
+	flag.IntVar(&envConfig.Port, "port", 4000, "API server port")
+	flag.StringVar(&envConfig.Env, "env", "dev", "Environment (dev|stage|prod)")
+	flag.StringVar(&envConfig.Dsn, "db-dsn", os.Getenv("EVENTS_DB_DSN"), "PostgreSQL DSN")
 	flag.Parse()
 
 	logger := log.New(os.Stdout, "", log.Ldate|log.Ltime)
 
-	db, err := sql.Open("postgres", cfg.dsn)
+	dbClient, err := sql.Open("postgres", envConfig.Dsn)
 	if err != nil {
 		logger.Fatal(err)
 	}
 
-	defer db.Close()
+	queue := app.QueueName
+	timeout := 20
 
-	err = db.Ping()
+	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
-		logger.Fatal(err)
+		panic("configuration error, " + err.Error())
 	}
 
-	logger.Printf("database connection pool established")
+	sqsClient := sqs.NewFromConfig(cfg)
 
-	app := &application{
-		config: cfg,
-		logger: logger,
-		models: data.NewModels(db),
+	gQInput := &sqs.GetQueueUrlInput{
+		QueueName: aws.String(queue),
 	}
 
-	addr := fmt.Sprintf(":%d", cfg.port)
-
-	srv := &http.Server{
-		Addr:         addr,
-		Handler:      app.router(),
-		IdleTimeout:  time.Minute,
-		ReadTimeout:  10 * time.Second,
-		WriteTimeout: 30 * time.Second,
+	urlResult, err := app.GetQueueURL(context.TODO(), sqsClient, gQInput)
+	if err != nil {
+		logger.Printf("Error getting queue url:%v\n", err)
 	}
-	logger.Printf("starting %s server on %s", cfg.env, addr)
 
+	queueURL := urlResult.QueueUrl
+
+	gMInput := &sqs.ReceiveMessageInput{
+		MessageAttributeNames: []string{
+			string(types.QueueAttributeNameAll),
+		},
+		QueueUrl:            queueURL,
+		MaxNumberOfMessages: 25,
+		VisibilityTimeout:   int32(timeout),
+	}
+
+	serviceConfig := app.ServiceConfig{
+		SqsClient:              sqsClient,
+		SqsReceiveMessageInput: gMInput,
+		DbClient:               dbClient,
+		Logger:                 logger,
+		Models:                 data.NewModels(dbClient),
+		EnvConfig:              envConfig,
+	}
+
+	srv := app.StartServer(&serviceConfig)
 	err = srv.ListenAndServe()
-	logger.Fatal(err)
+	if err != nil {
+		logger.Printf("The server has encountered an error:%v\n", err)
+	}
 }
