@@ -78,7 +78,7 @@ func StartServer(serviceConfig *ServiceConfig) *http.Server {
 		ReadTimeout:  10 * time.Second,
 		WriteTimeout: 30 * time.Second,
 	}
-	serviceConfig.Logger.Printf("starting %v server on %s", serviceConfig.EnvConfig, addr)
+	serviceConfig.Logger.Printf("starting %v server on %s\n", serviceConfig.EnvConfig, addr)
 
 	return srv
 }

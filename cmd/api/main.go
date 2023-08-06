@@ -4,7 +4,6 @@ import (
 	"context"
 	"database/sql"
 	"flag"
-	"fmt"
 	"github.com/aws/aws-sdk-go-v2/aws"
 	"github.com/aws/aws-sdk-go-v2/config"
 	"github.com/aws/aws-sdk-go-v2/service/sqs"
@@ -71,5 +70,7 @@ func main() {
 
 	srv := app.StartServer(&serviceConfig)
 	err = srv.ListenAndServe()
-	fmt.Printf("The server has encountered an error: %v", err)
+	if err != nil {
+		logger.Printf("The server has encountered an error:%v\n", err)
+	}
 }

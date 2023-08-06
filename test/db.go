@@ -50,7 +50,7 @@ func (config *DbConfig) CreateDbTable() error {
 
 	_, err := config.Client.Query(query)
 	if err != nil {
-		fmt.Errorf("DeleteEventsErr %v", err)
+		fmt.Printf("DeleteEventsErr %v", err)
 		return err
 	}
 
@@ -64,7 +64,7 @@ func (config *DbConfig) DropDbTable() error {
 
 	_, err := config.Client.Query(query)
 	if err != nil {
-		fmt.Errorf("DeleteEventsErr %v", err)
+		fmt.Printf("DeleteEventsErr %v", err)
 		return err
 	}
 
@@ -78,7 +78,7 @@ func (config *DbConfig) DeleteEvents() error {
 
 	_, err := config.Client.Query(query)
 	if err != nil {
-		fmt.Errorf("DeleteEventsErr %v", err)
+		fmt.Printf("DeleteEventsErr %v", err)
 		return err
 	}
 
