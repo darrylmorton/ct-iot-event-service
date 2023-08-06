@@ -30,26 +30,8 @@ func main() {
 		logger.Fatal(err)
 	}
 
-	// ** SQS START
 	queue := app.QueueName
 	timeout := 20
-
-	//queue := flag.String("q", "", "The name of the queue")
-	//timeout := flag.Int("t", 5, "How long, in seconds, that the message is hidden from others")
-	//flag.Parse()
-
-	//if *queue == "" {
-	//	fmt.Println("You must supply the name of a queue (-q QUEUE)")
-	//	//return
-	//}
-	//
-	//if *timeout < 0 {
-	//	*timeout = 0
-	//}
-	//
-	//if *timeout > 12*60*60 {
-	//	*timeout = 12 * 60 * 60
-	//}
 
 	cfg, err := config.LoadDefaultConfig(context.TODO())
 	if err != nil {
@@ -62,12 +44,9 @@ func main() {
 		QueueName: aws.String(queue),
 	}
 
-	// Get URL of queue
 	urlResult, err := app.GetQueueURL(context.TODO(), sqsClient, gQInput)
 	if err != nil {
-		fmt.Println("Got an error getting the queue URL:")
-		fmt.Println(err)
-		//return
+		logger.Printf("Error getting queue url:%v\n", err)
 	}
 
 	queueURL := urlResult.QueueUrl
@@ -81,8 +60,6 @@ func main() {
 		VisibilityTimeout:   int32(timeout),
 	}
 
-	//logger.Println("cfg", cfg)
-
 	serviceConfig := app.ServiceConfig{
 		SqsClient:              sqsClient,
 		SqsReceiveMessageInput: gMInput,
@@ -91,7 +68,6 @@ func main() {
 		Models:                 data.NewModels(dbClient),
 		EnvConfig:              envConfig,
 	}
-	// ** SQS END
 
 	srv := app.StartServer(&serviceConfig)
 	err = srv.ListenAndServe()

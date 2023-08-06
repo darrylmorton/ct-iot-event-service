@@ -172,7 +172,7 @@ func (config *DbConfig) DeleteEvents() error {
 	return nil
 }
 
-func (dbConfig *DbConfig) CreateEvent(data models.Event) (models.Event, error) {
+func (config *DbConfig) CreateEvent(data models.Event) (models.Event, error) {
 	query := `
 		INSERT INTO events (device_id, description, type, event, read)
 		VALUES ($1, $2, $3, $4, $5)
@@ -182,7 +182,7 @@ func (dbConfig *DbConfig) CreateEvent(data models.Event) (models.Event, error) {
 	var event models.Event
 
 	args := []interface{}{data.DeviceId, data.Description, data.Type, data.Event, data.Read}
-	row := dbConfig.Client.QueryRow(query, args...)
+	row := config.Client.QueryRow(query, args...)
 
 	err := row.Scan(
 		&event.Id,
