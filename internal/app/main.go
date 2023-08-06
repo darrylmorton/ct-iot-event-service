@@ -41,7 +41,7 @@ func StartServer(serviceConfig *ServiceConfig) *http.Server {
 	}
 
 	go func() {
-		result, err := GetMessages(context.Background(), serviceConfig.SqsClient, serviceConfig.SqsReceiveMessageInput)
+		result, err := GetMessages(context.TODO(), serviceConfig.SqsClient, serviceConfig.SqsReceiveMessageInput)
 		if err != nil {
 			serviceConfig.Logger.Printf("Error starting message consumer:%v\n", err)
 		}
