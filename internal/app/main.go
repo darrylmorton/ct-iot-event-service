@@ -2,10 +2,8 @@ package app
 
 import (
 	"context"
-	"database/sql"
 	"encoding/json"
 	"fmt"
-	"github.com/aws/aws-sdk-go-v2/service/sqs"
 	"github.com/darrylmorton/ct-iot-event-service/internal/data"
 	"github.com/darrylmorton/ct-iot-event-service/internal/models"
 	_ "github.com/lib/pq"
@@ -27,35 +25,6 @@ type Application struct {
 	config EnvConfig
 	logger *log.Logger
 	models data.Models
-}
-
-type SQSReceiveMessageImpl struct{}
-
-type ServiceConfig struct {
-	EnvConfig              EnvConfig
-	SqsReceiveMessageInput *sqs.ReceiveMessageInput
-	SqsClient              SQSReceiveMessageAPI
-	DbClient               *sql.DB
-	Logger                 *log.Logger
-	Models                 data.Models
-}
-
-type SQSReceiveMessageAPI interface {
-	GetQueueUrl(ctx context.Context,
-		params *sqs.GetQueueUrlInput,
-		optFns ...func(*sqs.Options)) (*sqs.GetQueueUrlOutput, error)
-
-	ReceiveMessage(ctx context.Context,
-		params *sqs.ReceiveMessageInput,
-		optFns ...func(*sqs.Options)) (*sqs.ReceiveMessageOutput, error)
-}
-
-func GetQueueURL(c context.Context, api SQSReceiveMessageAPI, input *sqs.GetQueueUrlInput) (*sqs.GetQueueUrlOutput, error) {
-	return api.GetQueueUrl(c, input)
-}
-
-func GetMessages(c context.Context, api SQSReceiveMessageAPI, input *sqs.ReceiveMessageInput) (*sqs.ReceiveMessageOutput, error) {
-	return api.ReceiveMessage(c, input)
 }
 
 func StartServer(serviceConfig *ServiceConfig) *http.Server {
@@ -91,7 +60,7 @@ func StartServer(serviceConfig *ServiceConfig) *http.Server {
 			}
 		}
 
-		if len(messagesUnmarshalled) != 0 {
+		if len(messagesUnmarshalled) > 0 {
 			_, err := serviceConfig.Models.Events.PostEvents(messagesUnmarshalled)
 			if err != nil {
 				serviceConfig.Logger.Printf("Error added message to database:%v\n", err)
