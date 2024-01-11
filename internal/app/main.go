@@ -46,25 +46,23 @@ func StartServer(serviceConfig *ServiceConfig) *http.Server {
 			serviceConfig.Logger.Printf("Error starting message consumer:%v\n", err)
 		}
 
-		messagesUnmarshalled := make([]models.Event, 0)
+		messagesChannel := make(chan models.Event, 25)
 
 		for _, item := range result.Messages {
 			var unmarshalledMessage = models.Event{}
-			var myMessage = *item.Body
+			var message = *item.Body
 
-			err := json.Unmarshal([]byte(myMessage), &unmarshalledMessage)
+			err := json.Unmarshal([]byte(message), &unmarshalledMessage)
 			if err != nil {
 				serviceConfig.Logger.Printf("Error unmarshalling message:%v\n", err)
 			} else {
-				messagesUnmarshalled = append(messagesUnmarshalled, unmarshalledMessage)
+				messagesChannel <- unmarshalledMessage
 			}
 		}
 
-		if len(messagesUnmarshalled) > 0 {
-			_, err := serviceConfig.Models.Events.PostEvents(messagesUnmarshalled)
-			if err != nil {
-				serviceConfig.Logger.Printf("Error added message to database:%v\n", err)
-			}
+		_, err = serviceConfig.Models.Events.PostEvents(messagesChannel)
+		if err != nil {
+			serviceConfig.Logger.Printf("Error added message to database:%v\n", err)
 		}
 
 	}()
