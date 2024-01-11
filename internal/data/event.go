@@ -109,25 +109,21 @@ func (e EventModel) PutEvent(id string, data models.Event) (models.Event, error,
 	return event, err, http.StatusOK
 }
 
-func (e EventModel) PostEvents(data []models.Event) (int, error) {
-	if len(data) > 0 {
-		stmt, err := e.DB.Prepare(`
+func (e EventModel) PostEvents(messagesChannel chan models.Event) (int, error) {
+	stmt, err := e.DB.Prepare(`
 			INSERT INTO events (device_id, description, type, event, read)
 			VALUES ($1, $2, $3, $4, $5)
 		`)
-		if err != nil {
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer stmt.Close() // Prepared statements take up server resources and should be closed after use.
+
+	for event := range messagesChannel {
+		if _, err := stmt.Exec(event.DeviceId, event.Description, event.Type, event.Event, event.Read); err != nil {
 			log.Fatal(err)
 		}
-		defer stmt.Close() // Prepared statements take up server resources and should be closed after use.
-
-		for _, event := range data {
-			if _, err := stmt.Exec(event.DeviceId, event.Description, event.Type, event.Event, event.Read); err != nil {
-				log.Fatal(err)
-			}
-		}
-
-		return len(data), err
-	} else {
-		return 0, nil
 	}
+
+	return len(messagesChannel), err
 }
